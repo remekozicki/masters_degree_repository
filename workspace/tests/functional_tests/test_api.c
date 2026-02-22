@@ -6,7 +6,7 @@
 #include <sys/wait.h>
 #endif
 
-#include "../common/tests_common.h"
+#include "../../common/tests_common.h"
 
 enum {
     PROBE_RET_ACCEPTED = 0,

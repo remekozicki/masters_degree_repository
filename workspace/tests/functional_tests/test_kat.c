@@ -3,7 +3,7 @@
 #include <string.h>
 #include <limits.h>
 
-#include "../common/tests_common.h"
+#include "../../common/tests_common.h"
 
 static int read_line(FILE *f, char **line, size_t *cap)
 {

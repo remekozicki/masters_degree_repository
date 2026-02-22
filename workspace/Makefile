@@ -7,6 +7,9 @@ ALG ?= ascon
 
 BASE := .
 COMMON := $(BASE)/common
+TESTS := $(BASE)/tests
+FUNC_TESTS := $(TESTS)/functional_tests
+PERF_TESTS := $(TESTS)/throughput_and_latency
 
 ifeq ($(ALG),ascon)
   IMPL_DIR := $(BASE)/ascon/ref
@@ -43,24 +46,30 @@ IMPL_OBJS := $(IMPL_SRCS:.c=.o)
 COMMON_SRCS := $(COMMON)/tests_common.c
 COMMON_OBJS := $(COMMON_SRCS:.c=.$(ALG).o)
 
-KAT_SRC := $(BASE)/tests/test_kat.c
-FUNC_SRC := $(BASE)/tests/test_functional.c
-RANDOM_SRC := $(BASE)/tests/test_random.c
-API_SRC := $(BASE)/tests/test_api.c
+KAT_SRC := $(FUNC_TESTS)/test_kat.c
+FUNC_SRC := $(FUNC_TESTS)/test_functional.c
+RANDOM_SRC := $(FUNC_TESTS)/test_random.c
+API_SRC := $(FUNC_TESTS)/test_api.c
+THROUGHPUT_SRC := $(PERF_TESTS)/test_throughput.c
+LATENCY_SRC := $(PERF_TESTS)/test_latency.c
 
 KAT_OBJ := $(KAT_SRC:.c=.$(ALG).o)
 FUNC_OBJ := $(FUNC_SRC:.c=.$(ALG).o)
 RANDOM_OBJ := $(RANDOM_SRC:.c=.$(ALG).o)
 API_OBJ := $(API_SRC:.c=.$(ALG).o)
+THROUGHPUT_OBJ := $(THROUGHPUT_SRC:.c=.$(ALG).o)
+LATENCY_OBJ := $(LATENCY_SRC:.c=.$(ALG).o)
 
 KAT_BIN := test-$(ALG)-kat$(EXEEXT)
 FUNC_BIN := test-$(ALG)-functional$(EXEEXT)
 RANDOM_BIN := test-$(ALG)-random$(EXEEXT)
 API_BIN := test-$(ALG)-api$(EXEEXT)
+THROUGHPUT_BIN := test-$(ALG)-throughput$(EXEEXT)
+LATENCY_BIN := test-$(ALG)-latency$(EXEEXT)
 
-DEPS := $(IMPL_OBJS:.o=.d) $(COMMON_OBJS:.o=.d) $(KAT_OBJ:.o=.d) $(FUNC_OBJ:.o=.d) $(RANDOM_OBJ:.o=.d) $(API_OBJ:.o=.d)
+DEPS := $(IMPL_OBJS:.o=.d) $(COMMON_OBJS:.o=.d) $(KAT_OBJ:.o=.d) $(FUNC_OBJ:.o=.d) $(RANDOM_OBJ:.o=.d) $(API_OBJ:.o=.d) $(THROUGHPUT_OBJ:.o=.d) $(LATENCY_OBJ:.o=.d)
 
-.PHONY: all run-kat run-func run-random run-api clean
+.PHONY: all run-kat run-func run-random run-api run-throughput run-latency run-perf clean
 
 all: $(KAT_BIN) $(FUNC_BIN)
 
@@ -84,6 +93,12 @@ $(RANDOM_BIN): $(RANDOM_OBJ) $(COMMON_OBJS) $(IMPL_OBJS)
 $(API_BIN): $(API_OBJ) $(COMMON_OBJS) $(IMPL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 
+$(THROUGHPUT_BIN): $(THROUGHPUT_OBJ) $(COMMON_OBJS) $(IMPL_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^
+
+$(LATENCY_BIN): $(LATENCY_OBJ) $(COMMON_OBJS) $(IMPL_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^
+
 run-kat: $(KAT_BIN)
 	$(RUN_PREFIX)$(KAT_BIN) "$(KAT_FILE)"
 
@@ -96,16 +111,24 @@ run-random: $(RANDOM_BIN)
 run-api: $(API_BIN)
 	$(RUN_PREFIX)$(API_BIN) "result-$(ALG)-api.csv"
 
+run-throughput: $(THROUGHPUT_BIN)
+	$(RUN_PREFIX)$(THROUGHPUT_BIN) "result-$(ALG)-throughput.csv"
+
+run-latency: $(LATENCY_BIN)
+	$(RUN_PREFIX)$(LATENCY_BIN) "result-$(ALG)-latency.csv"
+
+run-perf: run-throughput run-latency
+
 clean:
 ifeq ($(OS),Windows_NT)
-	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue 'test-ascon-kat','test-ascon-functional','test-ascon-random','test-ascon-api','test-elephant-kat','test-elephant-functional','test-elephant-random','test-elephant-api','test-gift-kat','test-gift-functional','test-gift-random','test-gift-api'; exit 0"
+	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue 'test-ascon-kat','test-ascon-functional','test-ascon-random','test-ascon-api','test-ascon-throughput','test-ascon-latency','test-elephant-kat','test-elephant-functional','test-elephant-random','test-elephant-api','test-elephant-throughput','test-elephant-latency','test-gift-kat','test-gift-functional','test-gift-random','test-gift-api','test-gift-throughput','test-gift-latency'; exit 0"
 	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue './ascon/ref/*.o','./ascon/ref/*.d','./elephant/ref/*.o','./elephant/ref/*.d','./gift-cofb/ref/*.o','./gift-cofb/ref/*.d'; exit 0"
-	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue './tests/*.ascon.o','./tests/*.elephant.o','./tests/*.gift.o','./tests/*.d'; exit 0"
+	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue './tests/*.ascon.o','./tests/*.elephant.o','./tests/*.gift.o','./tests/*.d','./tests/functional_tests/*.ascon.o','./tests/functional_tests/*.elephant.o','./tests/functional_tests/*.gift.o','./tests/functional_tests/*.d','./tests/throughput_and_latency/*.ascon.o','./tests/throughput_and_latency/*.elephant.o','./tests/throughput_and_latency/*.gift.o','./tests/throughput_and_latency/*.d'; exit 0"
 	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue './common/*.ascon.o','./common/*.elephant.o','./common/*.gift.o','./common/*.d'; exit 0"
 else
-	-rm -f test-ascon-kat test-ascon-functional test-ascon-random test-ascon-api test-elephant-kat test-elephant-functional test-elephant-random test-elephant-api test-gift-kat test-gift-functional test-gift-random test-gift-api
+	-rm -f test-ascon-kat test-ascon-functional test-ascon-random test-ascon-api test-ascon-throughput test-ascon-latency test-elephant-kat test-elephant-functional test-elephant-random test-elephant-api test-elephant-throughput test-elephant-latency test-gift-kat test-gift-functional test-gift-random test-gift-api test-gift-throughput test-gift-latency
 	-rm -f $(BASE)/ascon/ref/*.o $(BASE)/ascon/ref/*.d $(BASE)/elephant/ref/*.o $(BASE)/elephant/ref/*.d $(BASE)/gift-cofb/ref/*.o $(BASE)/gift-cofb/ref/*.d
-	-rm -f $(BASE)/tests/*.ascon.o $(BASE)/tests/*.elephant.o $(BASE)/tests/*.gift.o $(BASE)/tests/*.d
+	-rm -f $(BASE)/tests/*.ascon.o $(BASE)/tests/*.elephant.o $(BASE)/tests/*.gift.o $(BASE)/tests/*.d $(BASE)/tests/functional_tests/*.ascon.o $(BASE)/tests/functional_tests/*.elephant.o $(BASE)/tests/functional_tests/*.gift.o $(BASE)/tests/functional_tests/*.d $(BASE)/tests/throughput_and_latency/*.ascon.o $(BASE)/tests/throughput_and_latency/*.elephant.o $(BASE)/tests/throughput_and_latency/*.gift.o $(BASE)/tests/throughput_and_latency/*.d
 	-rm -f $(COMMON)/*.ascon.o $(COMMON)/*.elephant.o $(COMMON)/*.gift.o $(COMMON)/*.d
 endif
 

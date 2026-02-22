@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "../common/tests_common.h"
+#include "../../common/tests_common.h"
 
 static const size_t test_lengths[] = {
     0, 1, 2, 15, 16, 17, 31, 32, 33,
