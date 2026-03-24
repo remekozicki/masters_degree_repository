@@ -1,4 +1,12 @@
-CC ?= cc
+ifeq ($(OS),Windows_NT)
+  ifeq ($(origin CC), default)
+    CC := gcc
+  endif
+else
+  ifeq ($(origin CC), default)
+    CC := cc
+  endif
+endif
 CFLAGS ?= -O3 -std=c11 -Wall -Wextra -Wshadow -Wconversion -Wpointer-arith -D_POSIX_C_SOURCE=200809L
 DEPFLAGS := -MMD -MP
 
@@ -32,8 +40,8 @@ endif
 INCLUDES := -I$(IMPL_DIR) -I$(COMMON)
 
 ifeq ($(OS),Windows_NT)
-  EXEEXT :=
-  RUN_PREFIX :=
+  EXEEXT := .exe
+  RUN_PREFIX := ./
 else
   EXEEXT :=
   RUN_PREFIX := ./
@@ -131,7 +139,7 @@ run-perf: run-throughput run-latency run-micro-internal
 
 clean:
 ifeq ($(OS),Windows_NT)
-	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue 'test-ascon-kat','test-ascon-functional','test-ascon-random','test-ascon-api','test-ascon-throughput','test-ascon-latency','test-ascon-micro-internal','test-elephant-kat','test-elephant-functional','test-elephant-random','test-elephant-api','test-elephant-throughput','test-elephant-latency','test-elephant-micro-internal','test-gift-kat','test-gift-functional','test-gift-random','test-gift-api','test-gift-throughput','test-gift-latency','test-gift-micro-internal'; exit 0"
+	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue 'test-ascon-kat','test-ascon-functional','test-ascon-random','test-ascon-api','test-ascon-throughput','test-ascon-latency','test-ascon-micro-internal','test-elephant-kat','test-elephant-functional','test-elephant-random','test-elephant-api','test-elephant-throughput','test-elephant-latency','test-elephant-micro-internal','test-gift-kat','test-gift-functional','test-gift-random','test-gift-api','test-gift-throughput','test-gift-latency','test-gift-micro-internal','test-*.exe'; exit 0"
 	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue './ascon/ref/*.o','./ascon/ref/*.d','./elephant/ref/*.o','./elephant/ref/*.d','./gift-cofb/ref/*.o','./gift-cofb/ref/*.d'; exit 0"
 	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue './tests/*.ascon.o','./tests/*.elephant.o','./tests/*.gift.o','./tests/*.d','./tests/functional_tests/*.ascon.o','./tests/functional_tests/*.elephant.o','./tests/functional_tests/*.gift.o','./tests/functional_tests/*.d','./tests/throughput_and_latency/*.ascon.o','./tests/throughput_and_latency/*.elephant.o','./tests/throughput_and_latency/*.gift.o','./tests/throughput_and_latency/*.d','./tests/micro_internal/*.ascon.o','./tests/micro_internal/*.elephant.o','./tests/micro_internal/*.gift.o','./tests/micro_internal/*.d'; exit 0"
 	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue './common/*.ascon.o','./common/*.elephant.o','./common/*.gift.o','./common/*.d'; exit 0"

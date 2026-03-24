@@ -29,13 +29,13 @@ static int run_functional(FILE *csv) {
         fprintf(csv, "type,round,mlen,adlen,what,result\n");
     }
 
-    for (int r=0; r<ROUNDS; r++) {
-        for (size_t i=0;i<sizeof(msg_sizes)/sizeof(msg_sizes[0]);i++) {
-            for (size_t j=0;j<sizeof(ad_sizes)/sizeof(ad_sizes[0]);j++) {
+    for (int r = 0; r < ROUNDS; r++) {
+        for (size_t i = 0; i < sizeof(msg_sizes) / sizeof(msg_sizes[0]); i++) {
+            for (size_t j = 0; j < sizeof(ad_sizes) / sizeof(ad_sizes[0]); j++) {
                 size_t mlen = msg_sizes[i], adlen = ad_sizes[j];
                 unsigned char key[CRYPTO_KEYBYTES], npub[CRYPTO_NPUBBYTES];
-                unsigned char *m = (unsigned char*)xmalloc(mlen?mlen:1);
-                unsigned char *ad = (unsigned char*)xmalloc(adlen?adlen:1);
+                unsigned char *m = (unsigned char*)xmalloc(mlen ? mlen : 1);
+                unsigned char *ad = (unsigned char*)xmalloc(adlen ? adlen : 1);
                 rand_bytes(key, sizeof key);
                 rand_bytes(npub, sizeof npub);
                 rand_bytes(m, mlen);
@@ -51,7 +51,8 @@ static int run_functional(FILE *csv) {
                                              NULL, npub, key);
                 tests++;
                 if (r1 != 0 || clen != mlen + CRYPTO_ABYTES) {
-                    fails++; local_fail = 1;
+                    fails++;
+                    local_fail = 1;
                     if (csv) fprintf(csv, "functional,%d,%zu,%zu,encrypt,FAIL\n", r, mlen, adlen);
                     goto next_case;
                 } else if (csv) {
@@ -59,13 +60,14 @@ static int run_functional(FILE *csv) {
                 }
 
                 unsigned long long mlen2 = (unsigned long long)mlen;
-                unsigned char *m2 = (unsigned char*)xmalloc(mlen2?mlen2:1);
+                unsigned char *m2 = (unsigned char*)xmalloc(mlen2 ? mlen2 : 1);
                 int r2 = crypto_aead_decrypt(m2, &mlen2, NULL, c, clen,
                                              ad, (unsigned long long)adlen,
                                              npub, key);
                 tests++;
-                if (r2 != 0 || mlen2 != mlen || (mlen && memcmp(m,m2,mlen)!=0)) {
-                    fails++; local_fail = 1;
+                if (r2 != 0 || mlen2 != mlen || (mlen && memcmp(m, m2, mlen) != 0)) {
+                    fails++;
+                    local_fail = 1;
                     if (csv) fprintf(csv, "functional,%d,%zu,%zu,decrypt,FAIL\n", r, mlen, adlen);
                     free(m2);
                     goto next_case;
@@ -82,7 +84,7 @@ static int run_functional(FILE *csv) {
                     tests++;
                     int ok = expect_fail_decrypt(c1, clen, ad, adlen, npub, key);
                     if (!ok) { fails++; local_fail = 1; }
-                    if (csv) fprintf(csv, "functional,%d,%zu,%zu,flip_ct, %s\n",
+                    if (csv) fprintf(csv, "functional,%d,%zu,%zu,flip_ct,%s\n",
                                      r, mlen, adlen, ok ? "OK" : "FAIL");
                     free(c1);
                 }
@@ -90,7 +92,7 @@ static int run_functional(FILE *csv) {
                 {
                     unsigned char *c2 = (unsigned char*)xmalloc(clen);
                     memcpy(c2, c, clen);
-                    c2[clen-1] ^= 0x80;
+                    c2[clen - 1] ^= 0x80;
                     tests++;
                     int ok = expect_fail_decrypt(c2, clen, ad, adlen, npub, key);
                     if (!ok) { fails++; local_fail = 1; }
@@ -122,14 +124,16 @@ static int run_functional(FILE *csv) {
                                      r, mlen, adlen, ok ? "OK" : "FAIL");
                 }
 
-                next_case:
+next_case:
                 (void)local_fail; /* na razie nie wykorzystujemy osobno */
-                free(c); free(m); free(ad);
+                free(c);
+                free(m);
+                free(ad);
             }
         }
     }
 
-    printf("\nPodsumowanie testów funkcjonalnych:\n");
+    printf("\nPodsumowanie testow funkcjonalnych:\n");
     printf("+--------------------+--------+\n");
     printf("| Liczba asercji     | %6d |\n", tests);
     printf("| Niepowodzenia      | %6d |\n", fails);
@@ -143,9 +147,9 @@ static int run_functional(FILE *csv) {
 
 static void usage(const char *prog){
     fprintf(stderr,
-            "Użycie: %s [CSV_FILE]\n"
-            "  bez argumentów: tylko podsumowanie na stdout\n"
-            "  z CSV_FILE     : dodatkowo zapis CSV z wynikami\n", prog);
+            "Uzycie: %s [CSV_FILE]\n"
+            "  bez argumentow: tylko podsumowanie na stdout\n"
+            "  z CSV_FILE    : dodatkowo zapis CSV z wynikami\n", prog);
 }
 
 int main(int argc, char **argv) {

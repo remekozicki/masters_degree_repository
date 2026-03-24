@@ -125,7 +125,6 @@ static int run_kat(const char *kat_path)
             );
             if (r != 0 || mlen != ptlen || (ptlen && memcmp(m, pt, ptlen) != 0)) {
                 free(m);
-                free(c);
                 goto mismatch;
             }
 

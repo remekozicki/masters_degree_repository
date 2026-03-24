@@ -1,9 +1,9 @@
 #ifndef CRYPTO_AEAD_H
 #define CRYPTO_AEAD_H
 
-#include "api.h"  // dostarcza CRYPTO_*BYTES
+#include "api.h"  /* Provides CRYPTO_*BYTES constants. */
 
-/* Prototypy wspólne dla LWC AEAD */
+/* Common LWC AEAD API prototypes. */
 int crypto_aead_encrypt(
         unsigned char *c, unsigned long long *clen,
         const unsigned char *m, unsigned long long mlen,
