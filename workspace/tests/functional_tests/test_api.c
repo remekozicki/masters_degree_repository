@@ -338,17 +338,47 @@ static int normalize_system_exit(int system_rc)
 #endif
 }
 
+#if defined(_WIN32)
+static void normalize_windows_program_path(const char *input, char *output, size_t output_size)
+{
+    if (!input || !output || output_size == 0u) {
+        return;
+    }
+
+    size_t in_pos = 0u;
+    size_t out_pos = 0u;
+    if (input[0] == '.' && input[1] == '/') {
+        if (output_size > 2u) {
+            output[out_pos++] = '.';
+            output[out_pos++] = '\\';
+        }
+        in_pos = 2u;
+    }
+
+    while (input[in_pos] != '\0' && out_pos + 1u < output_size) {
+        output[out_pos++] = (input[in_pos] == '/') ? '\\' : input[in_pos];
+        in_pos++;
+    }
+    output[out_pos] = '\0';
+}
+#endif
+
 static int run_probe_subprocess(const char *program_name, int case_id)
 {
     char cmd[1024];
-    const int has_sep = (strchr(program_name, '/') != NULL) ||
-                        (strchr(program_name, '\\') != NULL);
 #if defined(_WIN32)
+    char normalized_program[512];
+    normalize_windows_program_path(program_name, normalized_program, sizeof normalized_program);
+    const char *program = normalized_program[0] ? normalized_program : program_name;
+    const int has_sep = (strchr(program, '/') != NULL) ||
+                        (strchr(program, '\\') != NULL);
     const char *prefix = has_sep ? "" : ".\\";
     int n = snprintf(cmd, sizeof cmd,
                      "\"%s%s\" --probe-case %d > NUL 2>&1",
-                     prefix, program_name, case_id);
+                     prefix, program, case_id);
 #else
+    const int has_sep = (strchr(program_name, '/') != NULL) ||
+                        (strchr(program_name, '\\') != NULL);
     const char *prefix = has_sep ? "" : "./";
     int n = snprintf(cmd, sizeof cmd,
                      "\"%s%s\" --probe-case %d > /dev/null 2>&1",

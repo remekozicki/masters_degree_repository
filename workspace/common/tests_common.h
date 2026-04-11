@@ -4,16 +4,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* z api.h bierzemy CRYPTO_* */
+/* From api.h we take CRYPTO_* constants. */
 #include "api.h"
 #include "crypto_aead.h"
 
-/* narzędzia */
+/* Test utilities. */
 int hex2bin(const char *hex, unsigned char **out, size_t *outlen);
 void *xmalloc(size_t n);
 void rand_bytes(unsigned char *buf, size_t n);
 
-/* globalny stan RNG można zostawić wewnątrz tests_common.c,
-   na zewnątrz widoczne tylko rand_bytes() */
+/* Keep RNG state private inside tests_common.c.
+   Only rand_bytes() is exposed externally. */
 
 #endif /* TESTS_COMMON_H */

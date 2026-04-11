@@ -39,3 +39,8 @@
 
 # debug information files
 *.dwo
+
+# IDE and generated benchmark artifacts
+.idea/
+workspace/result-*.csv
+workspace/test-*

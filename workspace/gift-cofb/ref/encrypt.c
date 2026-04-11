@@ -5,6 +5,8 @@ Email: crypto.s.m.sim@gmail.com
 Date: 23 Mar 2019
 */
 #include <string.h>
+#include <limits.h>
+#include <stdint.h>
 
 #include "api.h"
 #include "crypto_aead.h"
@@ -15,9 +17,36 @@ Date: 23 Mar 2019
 typedef unsigned char block[16];
 typedef unsigned char half_block[8];
 
+static int constcmp(const unsigned char *a, const unsigned char *b, size_t length) {
+    unsigned char diff = 0;
+    for (size_t i = 0; i < length; i++) {
+        diff |= (unsigned char)(a[i] ^ b[i]);
+    }
+    return (int)diff;
+}
+
+static int ranges_overlap(const unsigned char *a, unsigned long long alen,
+                          const unsigned char *b, unsigned long long blen) {
+    if (alen == 0ULL || blen == 0ULL || a == NULL || b == NULL) {
+        return 0;
+    }
+
+    const uintptr_t a_start = (uintptr_t)a;
+    const uintptr_t b_start = (uintptr_t)b;
+
+    if (alen > (unsigned long long)(UINTPTR_MAX - a_start) ||
+        blen > (unsigned long long)(UINTPTR_MAX - b_start)) {
+        return 1;
+    }
+
+    const uintptr_t a_end = a_start + (uintptr_t)alen;
+    const uintptr_t b_end = b_start + (uintptr_t)blen;
+    return (a_start < b_end && b_start < a_end) ? 1 : 0;
+}
+
 /* ------------------------------------------------------------------------- */
 
-static void padding(block d, block s, unsigned no_of_bytes){
+static void padding(block d, const block s, unsigned no_of_bytes){
     unsigned i;
     block tmp;
     if(no_of_bytes==0){
@@ -42,13 +71,13 @@ static void padding(block d, block s, unsigned no_of_bytes){
 
 /* ------------------------------------------------------------------------- */
 
-static void xor_block(block d, block s1, block s2, unsigned no_of_bytes) {
+static void xor_block(block d, const block s1, const block s2, unsigned no_of_bytes) {
     unsigned i;
     for (i=0; i<no_of_bytes; i++)
         d[i] = s1[i] ^ s2[i];
 }
 
-static void xor_topbar_block(block d, block s1, half_block s2) {
+static void xor_topbar_block(block d, const block s1, const half_block s2) {
     unsigned i;
     block tmp;
     for (i=0; i<8; i++)
@@ -62,7 +91,7 @@ static void xor_topbar_block(block d, block s1, half_block s2) {
 
 /* ------------------------------------------------------------------------- */
 
-static void double_half_block(half_block d, half_block s) {
+static void double_half_block(half_block d, const half_block s) {
     unsigned i;
     half_block tmp;
     /*x^{64} + x^4 + x^3 + x + 1*/
@@ -74,7 +103,7 @@ static void double_half_block(half_block d, half_block s) {
         d[i] = tmp[i];
 }
 
-static void triple_half_block(half_block d, half_block s) {
+static void triple_half_block(half_block d, const half_block s) {
     unsigned i;
     half_block tmp;
     double_half_block(tmp,s);
@@ -83,7 +112,7 @@ static void triple_half_block(half_block d, half_block s) {
 }
 /* ------------------------------------------------------------------------- */
 
-static void G(block d, block s){
+static void G(block d, const block s){
     unsigned i;
     block tmp;
     /*Y[1],Y[2] -> Y[2],Y[1]<<<1*/
@@ -99,19 +128,19 @@ static void G(block d, block s){
         d[i] = tmp[i];
 }
 
-static void pho1(block d, block Y, block M, int no_of_bytes) {
+static void pho1(block d, block Y, const block M, unsigned no_of_bytes) {
     block tmpM;
     G(Y,Y);
     padding(tmpM,M,no_of_bytes);
     xor_block(d,Y,tmpM,16);
 }
 
-static void pho(block Y, block M, block X, block C, int no_of_bytes) {
+static void pho(block Y, const block M, block X, block C, unsigned no_of_bytes) {
     xor_block(C,Y,M,no_of_bytes);
     pho1(X,Y,M,no_of_bytes);
 }
 
-static void phoprime(block Y, block C, block X, block M, int no_of_bytes) {
+static void phoprime(block Y, const block C, block X, block M, unsigned no_of_bytes) {
     xor_block(M,Y,C,no_of_bytes);
     pho1(X,Y,M,no_of_bytes);
 
@@ -119,9 +148,9 @@ static void phoprime(block Y, block C, block X, block M, int no_of_bytes) {
 
 /* ------------------------------------------------------------------------- */
 
-static int cofb_crypt(unsigned char *out, unsigned char *k, unsigned char *n,
-                     unsigned char *a, unsigned alen,
-                     unsigned char *in, unsigned inlen, int encrypting) {
+static int cofb_crypt(unsigned char *out, const unsigned char *k, const unsigned char *n,
+                     const unsigned char *a, unsigned alen,
+                     const unsigned char *in, unsigned inlen, int encrypting) {
 
     unsigned i;
     unsigned emptyA, emptyM;
@@ -242,7 +271,7 @@ static int cofb_crypt(unsigned char *out, unsigned char *k, unsigned char *n,
         memcpy(out, Y, TAGBYTES);
         return 0;
     } else
-        return (memcmp(in,Y,TAGBYTES) ? -1 : 0);     /* Check for validity */
+        return (constcmp(in, Y, TAGBYTES) ? -1 : 0);     /* Check for validity */
 }
 
 /* ------------------------------------------------------------------------- */
@@ -250,17 +279,17 @@ static int cofb_crypt(unsigned char *out, unsigned char *k, unsigned char *n,
 #define COFB_ENCRYPT 1
 #define COFB_DECRYPT 0
 
-void cofb_encrypt(unsigned char *c, unsigned char *k, unsigned char *n,
-                 unsigned char *a, unsigned abytes,
-                 unsigned char *p, unsigned pbytes) {
+void cofb_encrypt(unsigned char *c, const unsigned char *k, const unsigned char *n,
+                 const unsigned char *a, unsigned abytes,
+                 const unsigned char *p, unsigned pbytes) {
     cofb_crypt(c, k, n, a, abytes, p, pbytes, COFB_ENCRYPT);
 }
 
 /* ------------------------------------------------------------------------- */
 
-int cofb_decrypt(unsigned char *p, unsigned char *k, unsigned char *n,
-                unsigned char *a, unsigned abytes,
-                unsigned char *c, unsigned cbytes) {
+int cofb_decrypt(unsigned char *p, const unsigned char *k, const unsigned char *n,
+                const unsigned char *a, unsigned abytes,
+                const unsigned char *c, unsigned cbytes) {
     return cofb_crypt(p, k, n, a, abytes, c, cbytes, COFB_DECRYPT);
 }
 
@@ -276,10 +305,27 @@ const unsigned char *k
 )
 {
     (void)nsec;
+    if (c == NULL || clen == NULL || npub == NULL || k == NULL) {
+        return -1;
+    }
+    if (mlen > 0ULL && m == NULL) {
+        return -1;
+    }
+    if (adlen > 0ULL && ad == NULL) {
+        return -1;
+    }
+    if (mlen > (unsigned long long)UINT_MAX || adlen > (unsigned long long)UINT_MAX) {
+        return -1;
+    }
     *clen = mlen + TAGBYTES;
-    cofb_crypt(c, (unsigned char *)k, (unsigned char *)npub, (unsigned char *)ad,
-            adlen, (unsigned char *)m, mlen, COFB_ENCRYPT);
-    return 0;
+    if (*clen < mlen) {
+        return -1;
+    }
+    if (ranges_overlap(c, *clen, m, mlen)) {
+        return -1;
+    }
+    return cofb_crypt(c, k, npub, ad,
+            (unsigned)adlen, m, (unsigned)mlen, COFB_ENCRYPT);
 }
 
 int crypto_aead_decrypt(
@@ -292,8 +338,31 @@ const unsigned char *k
 )
 {
     (void)nsec;
+    if (mlen == NULL || c == NULL || npub == NULL || k == NULL) {
+        return -1;
+    }
+    if (clen < TAGBYTES) {
+        *mlen = 0;
+        return -1;
+    }
+    if (adlen > 0ULL && ad == NULL) {
+        *mlen = 0;
+        return -1;
+    }
+    if (clen > (unsigned long long)UINT_MAX || adlen > (unsigned long long)UINT_MAX) {
+        *mlen = 0;
+        return -1;
+    }
     *mlen = clen - TAGBYTES;
-    return cofb_crypt(m, (unsigned char *)k, (unsigned char *)npub,
-            (unsigned char *)ad, adlen, (unsigned char *)c, clen, COFB_DECRYPT);
+    if (*mlen > 0ULL && m == NULL) {
+        *mlen = 0;
+        return -1;
+    }
+    if (ranges_overlap(m, *mlen, c, clen)) {
+        *mlen = 0;
+        return -1;
+    }
+    return cofb_crypt(m, k, npub,
+            ad, (unsigned)adlen, c, (unsigned)clen, COFB_DECRYPT);
 }
 
