@@ -25,7 +25,14 @@ static unsigned long long micro_primitive_fold(const micro_primitive_state_t *st
 }
 
 #elif (CRYPTO_NPUBBYTES == 12)
-#include "elephant_200.h"
+/*
+ * Avoid including elephant_200.h here on Windows because it declares a
+ * typedef named SIZE that conflicts with WinAPI's SIZE from <windows.h>
+ * pulled by perf_shared.h.
+ */
+#define BLOCK_SIZE 25
+typedef unsigned char BYTE;
+void permutation(BYTE* state);
 #define MICRO_PRIMITIVE_LABEL "keccak-p200-18"
 enum { MICRO_PRIMITIVE_ROUNDS = 18 };
 

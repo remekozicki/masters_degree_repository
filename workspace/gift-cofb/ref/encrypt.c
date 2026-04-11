@@ -6,6 +6,7 @@ Date: 23 Mar 2019
 */
 #include <string.h>
 #include <limits.h>
+#include <stdint.h>
 
 #include "api.h"
 #include "crypto_aead.h"
@@ -15,6 +16,33 @@ Date: 23 Mar 2019
 
 typedef unsigned char block[16];
 typedef unsigned char half_block[8];
+
+static int constcmp(const unsigned char *a, const unsigned char *b, size_t length) {
+    unsigned char diff = 0;
+    for (size_t i = 0; i < length; i++) {
+        diff |= (unsigned char)(a[i] ^ b[i]);
+    }
+    return (int)diff;
+}
+
+static int ranges_overlap(const unsigned char *a, unsigned long long alen,
+                          const unsigned char *b, unsigned long long blen) {
+    if (alen == 0ULL || blen == 0ULL || a == NULL || b == NULL) {
+        return 0;
+    }
+
+    const uintptr_t a_start = (uintptr_t)a;
+    const uintptr_t b_start = (uintptr_t)b;
+
+    if (alen > (unsigned long long)(UINTPTR_MAX - a_start) ||
+        blen > (unsigned long long)(UINTPTR_MAX - b_start)) {
+        return 1;
+    }
+
+    const uintptr_t a_end = a_start + (uintptr_t)alen;
+    const uintptr_t b_end = b_start + (uintptr_t)blen;
+    return (a_start < b_end && b_start < a_end) ? 1 : 0;
+}
 
 /* ------------------------------------------------------------------------- */
 
@@ -277,11 +305,23 @@ const unsigned char *k
 )
 {
     (void)nsec;
+    if (c == NULL || clen == NULL || npub == NULL || k == NULL) {
+        return -1;
+    }
+    if (mlen > 0ULL && m == NULL) {
+        return -1;
+    }
+    if (adlen > 0ULL && ad == NULL) {
+        return -1;
+    }
     if (mlen > (unsigned long long)UINT_MAX || adlen > (unsigned long long)UINT_MAX) {
         return -1;
     }
     *clen = mlen + TAGBYTES;
     if (*clen < mlen) {
+        return -1;
+    }
+    if (ranges_overlap(c, *clen, m, mlen)) {
         return -1;
     }
     return cofb_crypt(c, k, npub, ad,
@@ -298,7 +338,14 @@ const unsigned char *k
 )
 {
     (void)nsec;
+    if (mlen == NULL || c == NULL || npub == NULL || k == NULL) {
+        return -1;
+    }
     if (clen < TAGBYTES) {
+        *mlen = 0;
+        return -1;
+    }
+    if (adlen > 0ULL && ad == NULL) {
         *mlen = 0;
         return -1;
     }
@@ -307,6 +354,14 @@ const unsigned char *k
         return -1;
     }
     *mlen = clen - TAGBYTES;
+    if (*mlen > 0ULL && m == NULL) {
+        *mlen = 0;
+        return -1;
+    }
+    if (ranges_overlap(m, *mlen, c, clen)) {
+        *mlen = 0;
+        return -1;
+    }
     return cofb_crypt(m, k, npub,
             ad, (unsigned)adlen, c, (unsigned)clen, COFB_DECRYPT);
 }

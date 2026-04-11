@@ -4,6 +4,26 @@
 #include "permutations.h"
 #include "printstate.h"
 #include "word.h"
+#include <stdint.h>
+
+static int ranges_overlap(const unsigned char* a, unsigned long long alen,
+                          const unsigned char* b, unsigned long long blen) {
+  if (alen == 0ULL || blen == 0ULL || a == NULL || b == NULL) {
+    return 0;
+  }
+
+  const uintptr_t a_start = (uintptr_t)a;
+  const uintptr_t b_start = (uintptr_t)b;
+
+  if (alen > (unsigned long long)(UINTPTR_MAX - a_start) ||
+      blen > (unsigned long long)(UINTPTR_MAX - b_start)) {
+    return 1;
+  }
+
+  const uintptr_t a_end = a_start + (uintptr_t)alen;
+  const uintptr_t b_end = b_start + (uintptr_t)blen;
+  return (a_start < b_end && b_start < a_end) ? 1 : 0;
+}
 
 int crypto_aead_decrypt(unsigned char* m, unsigned long long* mlen,
                         unsigned char* nsec, const unsigned char* c,
@@ -11,11 +31,26 @@ int crypto_aead_decrypt(unsigned char* m, unsigned long long* mlen,
                         unsigned long long adlen, const unsigned char* npub,
                         const unsigned char* k) {
   (void)nsec;
-
-  if (clen < CRYPTO_ABYTES) return -1;
+  if (mlen == NULL || c == NULL || npub == NULL || k == NULL) return -1;
+  if (clen < CRYPTO_ABYTES) {
+    *mlen = 0;
+    return -1;
+  }
+  if (adlen > 0ULL && ad == NULL) {
+    *mlen = 0;
+    return -1;
+  }
 
   /* set plaintext size */
   *mlen = clen - CRYPTO_ABYTES;
+  if (*mlen > 0ULL && m == NULL) {
+    *mlen = 0;
+    return -1;
+  }
+  if (ranges_overlap(m, *mlen, c, clen)) {
+    *mlen = 0;
+    return -1;
+  }
 
   /* load key and nonce */
   const uint64_t K0 = LOADBYTES(k, 8);

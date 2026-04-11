@@ -4,6 +4,26 @@
 #include "permutations.h"
 #include "printstate.h"
 #include "word.h"
+#include <stdint.h>
+
+static int ranges_overlap(const unsigned char* a, unsigned long long alen,
+                          const unsigned char* b, unsigned long long blen) {
+  if (alen == 0ULL || blen == 0ULL || a == NULL || b == NULL) {
+    return 0;
+  }
+
+  const uintptr_t a_start = (uintptr_t)a;
+  const uintptr_t b_start = (uintptr_t)b;
+
+  if (alen > (unsigned long long)(UINTPTR_MAX - a_start) ||
+      blen > (unsigned long long)(UINTPTR_MAX - b_start)) {
+    return 1;
+  }
+
+  const uintptr_t a_end = a_start + (uintptr_t)alen;
+  const uintptr_t b_end = b_start + (uintptr_t)blen;
+  return (a_start < b_end && b_start < a_end) ? 1 : 0;
+}
 
 int crypto_aead_encrypt(unsigned char* c, unsigned long long* clen,
                         const unsigned char* m, unsigned long long mlen,
@@ -11,9 +31,24 @@ int crypto_aead_encrypt(unsigned char* c, unsigned long long* clen,
                         const unsigned char* nsec, const unsigned char* npub,
                         const unsigned char* k) {
   (void)nsec;
+  if (c == NULL || clen == NULL || npub == NULL || k == NULL) {
+    return -1;
+  }
+  if (mlen > 0ULL && m == NULL) {
+    return -1;
+  }
+  if (adlen > 0ULL && ad == NULL) {
+    return -1;
+  }
 
   /* set ciphertext size */
   *clen = mlen + CRYPTO_ABYTES;
+  if (*clen < mlen) {
+    return -1;
+  }
+  if (ranges_overlap(c, *clen, m, mlen)) {
+    return -1;
+  }
 
   /* load key and nonce */
   const uint64_t K0 = LOADBYTES(k, 8);

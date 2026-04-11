@@ -1,6 +1,7 @@
 #include "api.h"
 #include "crypto_aead.h"
 #include <string.h>
+#include <stdint.h>
 #include "elephant_200.h"
 
 
@@ -16,6 +17,26 @@ int constcmp(const BYTE* a, const BYTE* b, SIZE length)
     for (SIZE i = 0; i < length; ++i)
         r |= a[i] ^ b[i];
     return r;
+}
+
+static int ranges_overlap(const unsigned char* a, unsigned long long alen,
+                          const unsigned char* b, unsigned long long blen)
+{
+    if (alen == 0ULL || blen == 0ULL || a == NULL || b == NULL) {
+        return 0;
+    }
+
+    const uintptr_t a_start = (uintptr_t)a;
+    const uintptr_t b_start = (uintptr_t)b;
+
+    if (alen > (unsigned long long)(UINTPTR_MAX - a_start) ||
+        blen > (unsigned long long)(UINTPTR_MAX - b_start)) {
+        return 1;
+    }
+
+    const uintptr_t a_end = a_start + (uintptr_t)alen;
+    const uintptr_t b_end = b_start + (uintptr_t)blen;
+    return (a_start < b_end && b_start < a_end) ? 1 : 0;
 }
 
 // State should be BLOCK_SIZE bytes long
@@ -189,7 +210,22 @@ int crypto_aead_encrypt(
   const unsigned char *k)
 {
     (void)nsec;
+    if (c == NULL || clen == NULL || npub == NULL || k == NULL) {
+        return -1;
+    }
+    if (mlen > 0ULL && m == NULL) {
+        return -1;
+    }
+    if (adlen > 0ULL && ad == NULL) {
+        return -1;
+    }
     *clen = mlen + CRYPTO_ABYTES;
+    if (*clen < mlen) {
+        return -1;
+    }
+    if (ranges_overlap(c, *clen, m, mlen)) {
+        return -1;
+    }
     BYTE tag[CRYPTO_ABYTES];
     crypto_aead_impl(c, tag, m, mlen, ad, adlen, npub, k, 1);
     memcpy(c + mlen, tag, CRYPTO_ABYTES);
@@ -205,9 +241,26 @@ int crypto_aead_decrypt(
   const unsigned char *k)
 {
     (void)nsec;
-    if(clen < CRYPTO_ABYTES)
+    if (mlen == NULL || c == NULL || npub == NULL || k == NULL) {
         return -1;
+    }
+    if(clen < CRYPTO_ABYTES) {
+        *mlen = 0;
+        return -1;
+    }
+    if (adlen > 0ULL && ad == NULL) {
+        *mlen = 0;
+        return -1;
+    }
     *mlen = clen - CRYPTO_ABYTES;
+    if (*mlen > 0ULL && m == NULL) {
+        *mlen = 0;
+        return -1;
+    }
+    if (ranges_overlap(m, *mlen, c, clen)) {
+        *mlen = 0;
+        return -1;
+    }
     BYTE tag[CRYPTO_ABYTES];
     crypto_aead_impl(m, tag, c, *mlen, ad, adlen, npub, k, 0);
     return (constcmp(c + *mlen, tag, CRYPTO_ABYTES) == 0) ? 0 : -1;
