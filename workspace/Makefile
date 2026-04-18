@@ -20,10 +20,37 @@ FUNC_TESTS := $(TESTS)/functional_tests
 PERF_TESTS := $(TESTS)/throughput_and_latency
 MICRO_TESTS := $(TESTS)/micro_internal
 LIGHTWEIGHT_TESTS := $(TESTS)/memory_and_code_size
+CLASSIC_RSA_TESTS := $(TESTS)/classic_rsa
 LIGHTWEIGHT_OUTPUT ?= result-$(ALG)-lightweight.csv
 LIGHTWEIGHT_KEEP_BUILD ?= 0
 LIGHTWEIGHT_INLINE_SCRIPT := $(LIGHTWEIGHT_TESTS)/.run_lightweight_from_make.ps1
 LIGHTWEIGHT_KEEP_FLAG := $(if $(filter 1 yes true YES TRUE,$(LIGHTWEIGHT_KEEP_BUILD)),-KeepBuildDir,)
+RSA_BITS ?= 2048
+RSA_PROVIDER ?= default
+RSA_CT_SAMPLES ?= 2000
+RSA_CT_STRICT ?= 0
+RSA_CT_STRICT_FLAG := $(if $(filter 1 yes true YES TRUE,$(RSA_CT_STRICT)),strict,)
+RSA_OUTPUT_PREFIX ?= result-rsa-$(RSA_BITS)-$(RSA_PROVIDER)
+RSA_OPENSSL_ROOT ?=
+RSA_OPENSSL_CFLAGS ?=
+RSA_OPENSSL_LIBS ?=
+ifneq ($(strip $(RSA_OPENSSL_ROOT)),)
+  RSA_OPENSSL_CFLAGS += -I$(RSA_OPENSSL_ROOT)/include
+  ifeq ($(strip $(RSA_OPENSSL_LIBS)),)
+    ifeq ($(OS),Windows_NT)
+      ifneq ($(wildcard $(RSA_OPENSSL_ROOT)/lib/libcrypto.lib),)
+        RSA_OPENSSL_LIBS := $(RSA_OPENSSL_ROOT)/lib/libcrypto.lib -lcrypt32 -lws2_32 -lgdi32
+      else
+        RSA_OPENSSL_LIBS := -L$(RSA_OPENSSL_ROOT)/lib -lcrypto -lcrypt32 -lws2_32 -lgdi32
+      endif
+    else
+      RSA_OPENSSL_LIBS := -L$(RSA_OPENSSL_ROOT)/lib -lcrypto
+    endif
+  endif
+endif
+ifeq ($(strip $(RSA_OPENSSL_LIBS)),)
+  RSA_OPENSSL_LIBS := -lcrypto
+endif
 
 ifeq ($(ALG),ascon)
   IMPL_DIR := $(BASE)/ascon/ref
@@ -67,6 +94,9 @@ API_SRC := $(FUNC_TESTS)/test_api.c
 THROUGHPUT_SRC := $(PERF_TESTS)/test_throughput.c
 LATENCY_SRC := $(PERF_TESTS)/test_latency.c
 MICRO_INTERNAL_SRC := $(MICRO_TESTS)/test_micro_internal.c
+RSA_FUNCTIONAL_SRC := $(CLASSIC_RSA_TESTS)/test_rsa_functional.c
+RSA_PERF_SRC := $(CLASSIC_RSA_TESTS)/test_rsa_perf.c
+RSA_CT_SRC := $(CLASSIC_RSA_TESTS)/test_rsa_constant_time.c
 
 KAT_OBJ := $(KAT_SRC:.c=.$(ALG).o)
 FUNC_OBJ := $(FUNC_SRC:.c=.$(ALG).o)
@@ -75,6 +105,9 @@ API_OBJ := $(API_SRC:.c=.$(ALG).o)
 THROUGHPUT_OBJ := $(THROUGHPUT_SRC:.c=.$(ALG).o)
 LATENCY_OBJ := $(LATENCY_SRC:.c=.$(ALG).o)
 MICRO_INTERNAL_OBJ := $(MICRO_INTERNAL_SRC:.c=.$(ALG).o)
+RSA_FUNCTIONAL_OBJ := $(RSA_FUNCTIONAL_SRC:.c=.o)
+RSA_PERF_OBJ := $(RSA_PERF_SRC:.c=.o)
+RSA_CT_OBJ := $(RSA_CT_SRC:.c=.o)
 
 KAT_BIN := test-$(ALG)-kat$(EXEEXT)
 FUNC_BIN := test-$(ALG)-functional$(EXEEXT)
@@ -83,10 +116,13 @@ API_BIN := test-$(ALG)-api$(EXEEXT)
 THROUGHPUT_BIN := test-$(ALG)-throughput$(EXEEXT)
 LATENCY_BIN := test-$(ALG)-latency$(EXEEXT)
 MICRO_INTERNAL_BIN := test-$(ALG)-micro-internal$(EXEEXT)
+RSA_FUNCTIONAL_BIN := test-rsa-functional$(EXEEXT)
+RSA_PERF_BIN := test-rsa-perf$(EXEEXT)
+RSA_CT_BIN := test-rsa-constant-time$(EXEEXT)
 
-DEPS := $(IMPL_OBJS:.o=.d) $(COMMON_OBJS:.o=.d) $(KAT_OBJ:.o=.d) $(FUNC_OBJ:.o=.d) $(RANDOM_OBJ:.o=.d) $(API_OBJ:.o=.d) $(THROUGHPUT_OBJ:.o=.d) $(LATENCY_OBJ:.o=.d) $(MICRO_INTERNAL_OBJ:.o=.d)
+DEPS := $(IMPL_OBJS:.o=.d) $(COMMON_OBJS:.o=.d) $(KAT_OBJ:.o=.d) $(FUNC_OBJ:.o=.d) $(RANDOM_OBJ:.o=.d) $(API_OBJ:.o=.d) $(THROUGHPUT_OBJ:.o=.d) $(LATENCY_OBJ:.o=.d) $(MICRO_INTERNAL_OBJ:.o=.d) $(RSA_FUNCTIONAL_OBJ:.o=.d) $(RSA_PERF_OBJ:.o=.d) $(RSA_CT_OBJ:.o=.d)
 
-.PHONY: all run-kat run-func run-random run-api run-throughput run-latency run-micro-internal run-perf clean
+.PHONY: all run-kat run-func run-random run-api run-throughput run-latency run-micro-internal run-perf run-rsa-functional run-rsa-latency run-rsa-throughput run-rsa-ct-sanity run-rsa-tests run-classic clean
 define LIGHTWEIGHT_INLINE_PS1
 param(
     [Parameter(Mandatory = $$true)]
@@ -658,7 +694,7 @@ if (-not $$KeepBuildDir.IsPresent) {
 }
 endef
 
-.PHONY: all run-kat run-func run-random run-api run-throughput run-latency run-perf run-lightweight clean
+.PHONY: all run-kat run-func run-random run-api run-throughput run-latency run-perf run-lightweight run-rsa-functional run-rsa-latency run-rsa-throughput run-rsa-ct-sanity run-rsa-tests run-classic clean
 
 all: $(KAT_BIN) $(FUNC_BIN)
 
@@ -690,6 +726,24 @@ $(LATENCY_BIN): $(LATENCY_OBJ) $(COMMON_OBJS) $(IMPL_OBJS)
 
 $(MICRO_INTERNAL_BIN): $(MICRO_INTERNAL_OBJ) $(COMMON_OBJS) $(IMPL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
+
+$(RSA_FUNCTIONAL_OBJ): $(RSA_FUNCTIONAL_SRC) $(CLASSIC_RSA_TESTS)/rsa_common.h
+	$(CC) $(CFLAGS) $(RSA_OPENSSL_CFLAGS) $(DEPFLAGS) -c -o $@ $<
+
+$(RSA_PERF_OBJ): $(RSA_PERF_SRC) $(CLASSIC_RSA_TESTS)/rsa_common.h
+	$(CC) $(CFLAGS) $(RSA_OPENSSL_CFLAGS) $(DEPFLAGS) -c -o $@ $<
+
+$(RSA_CT_OBJ): $(RSA_CT_SRC) $(CLASSIC_RSA_TESTS)/rsa_common.h
+	$(CC) $(CFLAGS) $(RSA_OPENSSL_CFLAGS) $(DEPFLAGS) -c -o $@ $<
+
+$(RSA_FUNCTIONAL_BIN): $(RSA_FUNCTIONAL_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(RSA_OPENSSL_LIBS)
+
+$(RSA_PERF_BIN): $(RSA_PERF_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(RSA_OPENSSL_LIBS)
+
+$(RSA_CT_BIN): $(RSA_CT_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(RSA_OPENSSL_LIBS) -lm
 
 run-kat: $(KAT_BIN)
 	$(RUN_PREFIX)$(KAT_BIN) "$(KAT_FILE)"
@@ -724,18 +778,36 @@ else
 	@-rm -f "$(LIGHTWEIGHT_INLINE_SCRIPT)"
 endif
 
+run-rsa-functional: $(RSA_FUNCTIONAL_BIN)
+	$(RUN_PREFIX)$(RSA_FUNCTIONAL_BIN) "$(RSA_OUTPUT_PREFIX)-functional.csv" "$(RSA_BITS)" "$(RSA_PROVIDER)"
+
+run-rsa-latency: $(RSA_PERF_BIN)
+	$(RUN_PREFIX)$(RSA_PERF_BIN) latency "$(RSA_OUTPUT_PREFIX)-latency.csv" "$(RSA_BITS)" "$(RSA_PROVIDER)"
+
+run-rsa-throughput: $(RSA_PERF_BIN)
+	$(RUN_PREFIX)$(RSA_PERF_BIN) throughput "$(RSA_OUTPUT_PREFIX)-throughput.csv" "$(RSA_BITS)" "$(RSA_PROVIDER)"
+
+run-rsa-ct-sanity: $(RSA_CT_BIN)
+	$(RUN_PREFIX)$(RSA_CT_BIN) "$(RSA_OUTPUT_PREFIX)-constant-time.csv" "$(RSA_BITS)" "$(RSA_PROVIDER)" "$(RSA_CT_SAMPLES)" $(RSA_CT_STRICT_FLAG)
+
+run-rsa-tests: run-rsa-functional run-rsa-latency run-rsa-throughput run-rsa-ct-sanity
+
+run-classic: run-rsa-tests
+
 clean:
 ifeq ($(OS),Windows_NT)
 	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue 'test-ascon-kat','test-ascon-functional','test-ascon-random','test-ascon-api','test-ascon-throughput','test-ascon-latency','test-ascon-micro-internal','test-elephant-kat','test-elephant-functional','test-elephant-random','test-elephant-api','test-elephant-throughput','test-elephant-latency','test-elephant-micro-internal','test-gift-kat','test-gift-functional','test-gift-random','test-gift-api','test-gift-throughput','test-gift-latency','test-gift-micro-internal','test-*.exe'; exit 0"
 	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue './ascon/ref/*.o','./ascon/ref/*.d','./elephant/ref/*.o','./elephant/ref/*.d','./gift-cofb/ref/*.o','./gift-cofb/ref/*.d'; exit 0"
 	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue './tests/*.ascon.o','./tests/*.elephant.o','./tests/*.gift.o','./tests/*.d','./tests/functional_tests/*.ascon.o','./tests/functional_tests/*.elephant.o','./tests/functional_tests/*.gift.o','./tests/functional_tests/*.d','./tests/throughput_and_latency/*.ascon.o','./tests/throughput_and_latency/*.elephant.o','./tests/throughput_and_latency/*.gift.o','./tests/throughput_and_latency/*.d','./tests/micro_internal/*.ascon.o','./tests/micro_internal/*.elephant.o','./tests/micro_internal/*.gift.o','./tests/micro_internal/*.d'; exit 0"
 	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue './tests/*.ascon.o','./tests/*.elephant.o','./tests/*.gift.o','./tests/*.d','./tests/functional_tests/*.ascon.o','./tests/functional_tests/*.elephant.o','./tests/functional_tests/*.gift.o','./tests/functional_tests/*.d','./tests/throughput_and_latency/*.ascon.o','./tests/throughput_and_latency/*.elephant.o','./tests/throughput_and_latency/*.gift.o','./tests/throughput_and_latency/*.d','./tests/memory_and_code_size/.run_lightweight_from_make.ps1'; exit 0"
+	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue './tests/classic_rsa/*.o','./tests/classic_rsa/*.d'; exit 0"
 	-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue './common/*.ascon.o','./common/*.elephant.o','./common/*.gift.o','./common/*.d'; exit 0"
 else
-	-rm -f test-ascon-kat test-ascon-functional test-ascon-random test-ascon-api test-ascon-throughput test-ascon-latency test-ascon-micro-internal test-elephant-kat test-elephant-functional test-elephant-random test-elephant-api test-elephant-throughput test-elephant-latency test-elephant-micro-internal test-gift-kat test-gift-functional test-gift-random test-gift-api test-gift-throughput test-gift-latency test-gift-micro-internal
+	-rm -f test-ascon-kat test-ascon-functional test-ascon-random test-ascon-api test-ascon-throughput test-ascon-latency test-ascon-micro-internal test-elephant-kat test-elephant-functional test-elephant-random test-elephant-api test-elephant-throughput test-elephant-latency test-elephant-micro-internal test-gift-kat test-gift-functional test-gift-random test-gift-api test-gift-throughput test-gift-latency test-gift-micro-internal test-rsa-functional test-rsa-perf test-rsa-constant-time
 	-rm -f $(BASE)/ascon/ref/*.o $(BASE)/ascon/ref/*.d $(BASE)/elephant/ref/*.o $(BASE)/elephant/ref/*.d $(BASE)/gift-cofb/ref/*.o $(BASE)/gift-cofb/ref/*.d
 	-rm -f $(BASE)/tests/*.ascon.o $(BASE)/tests/*.elephant.o $(BASE)/tests/*.gift.o $(BASE)/tests/*.d $(BASE)/tests/functional_tests/*.ascon.o $(BASE)/tests/functional_tests/*.elephant.o $(BASE)/tests/functional_tests/*.gift.o $(BASE)/tests/functional_tests/*.d $(BASE)/tests/throughput_and_latency/*.ascon.o $(BASE)/tests/throughput_and_latency/*.elephant.o $(BASE)/tests/throughput_and_latency/*.gift.o $(BASE)/tests/throughput_and_latency/*.d $(BASE)/tests/micro_internal/*.ascon.o $(BASE)/tests/micro_internal/*.elephant.o $(BASE)/tests/micro_internal/*.gift.o $(BASE)/tests/micro_internal/*.d
 	-rm -f $(BASE)/tests/*.ascon.o $(BASE)/tests/*.elephant.o $(BASE)/tests/*.gift.o $(BASE)/tests/*.d $(BASE)/tests/functional_tests/*.ascon.o $(BASE)/tests/functional_tests/*.elephant.o $(BASE)/tests/functional_tests/*.gift.o $(BASE)/tests/functional_tests/*.d $(BASE)/tests/throughput_and_latency/*.ascon.o $(BASE)/tests/throughput_and_latency/*.elephant.o $(BASE)/tests/throughput_and_latency/*.gift.o $(BASE)/tests/throughput_and_latency/*.d $(BASE)/tests/memory_and_code_size/.run_lightweight_from_make.ps1
+	-rm -f $(BASE)/tests/classic_rsa/*.o $(BASE)/tests/classic_rsa/*.d
 	-rm -f $(COMMON)/*.ascon.o $(COMMON)/*.elephant.o $(COMMON)/*.gift.o $(COMMON)/*.d
 endif
 
