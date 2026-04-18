@@ -1,0 +1,8 @@
+.git
+.idea
+results
+workspace/result-*.csv
+workspace/test-*
+workspace/**/*.o
+workspace/**/*.d
+workspace/tests/memory_and_code_size/.run_lightweight_from_make.ps1

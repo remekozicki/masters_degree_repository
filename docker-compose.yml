@@ -1,0 +1,15 @@
+services:
+  bench:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lwc-bench:latest
+    cpuset: "${CPUSET:-2}"
+    cpus: "${CPUS:-1.0}"
+    mem_limit: "${MEM_LIMIT:-512m}"
+    environment:
+      RSA_BITS_LIST: "${RSA_BITS_LIST:-2048 3072}"
+      RSA_PROVIDER: "${RSA_PROVIDER:-default}"
+      CLEAN_RESULTS: "${CLEAN_RESULTS:-1}"
+    volumes:
+      - ./results:/opt/project/results
