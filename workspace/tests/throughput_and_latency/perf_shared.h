@@ -1,6 +1,10 @@
 #ifndef PERF_SHARED_H
 #define PERF_SHARED_H
 
+#if defined(__linux__) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

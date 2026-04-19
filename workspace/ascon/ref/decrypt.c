@@ -5,6 +5,7 @@
 #include "printstate.h"
 #include "word.h"
 #include <stdint.h>
+#include <stddef.h>
 
 static int ranges_overlap(const unsigned char* a, unsigned long long alen,
                           const unsigned char* b, unsigned long long blen) {

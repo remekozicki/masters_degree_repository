@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stddef.h>
 
 #include "api.h"
 #include "crypto_aead.h"

@@ -598,16 +598,16 @@ foreach ($$config in $$configs) {
     $$maxEncrypt = 0
     $$maxEncryptCase = ""
     if ($$encryptRows.Count -gt 0) {
-        $$peakEnc = $$encryptRows | Sort-Object { [int]$$_.stack_peak_bytes } -Descending | Select-Object -First 1
-        $$maxEncrypt = [int]$$peakEnc.stack_peak_bytes
+        $$peakEnc = $$encryptRows | Sort-Object { [long]$$_.stack_peak_bytes } -Descending | Select-Object -First 1
+        $$maxEncrypt = [long]$$peakEnc.stack_peak_bytes
         $$maxEncryptCase = "len=" + [string]$$peakEnc.msg_len
     }
 
     $$maxDecrypt = 0
     $$maxDecryptCase = ""
     if ($$decryptRows.Count -gt 0) {
-        $$peakDec = $$decryptRows | Sort-Object { [int]$$_.stack_peak_bytes } -Descending | Select-Object -First 1
-        $$maxDecrypt = [int]$$peakDec.stack_peak_bytes
+        $$peakDec = $$decryptRows | Sort-Object { [long]$$_.stack_peak_bytes } -Descending | Select-Object -First 1
+        $$maxDecrypt = [long]$$peakDec.stack_peak_bytes
         $$maxDecryptCase = "len=" + [string]$$peakDec.msg_len
     }
 
